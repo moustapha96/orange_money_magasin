@@ -1,0 +1,11 @@
+{
+    "clientID": "0270f284-2796-4879-a8a7-6ad4c14348db",
+    "ClientSecret": "d29b1078-aa46-4399-a32a-5f79a09445b1",
+    "code Marchant" : 562544,
+
+    "prod": {
+        "clientID": "a3a0482e-0292-438c-9b8d-a580d9181fa1",
+        "ClientSecret": "768fa88b-819d-4ae2-9ac9-c5de3ff03f20",
+        "code Marchant" : 562544
+    }
+}

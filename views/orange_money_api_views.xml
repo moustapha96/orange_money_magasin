@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Vue liste pour les transactions Orange Money API -->
+    <record id="view_orange_money_api_transaction_tree" model="ir.ui.view">
+        <field name="name">orange.money.api.transaction.tree</field>
+        <field name="model">orange.money.api.transaction</field>
+        <field name="arch" type="xml">
+            <tree string="Transactions Orange Money API">
+                <field name="transaction_id" />
+                <field name="type" />
+                <field name="status" />
+                <field name="amount_value" />
+                <field name="amount_unit" />
+                <field name="channel" />
+                <field name="customer_msisdn" />
+                <field name="created_at" />
+                <field name="order_id" />
+            </tree>
+        </field>
+    </record>
+
+    <!-- Vue formulaire pour les transactions Orange Money API -->
+    <record id="view_orange_money_api_transaction_form" model="ir.ui.view">
+        <field name="name">orange.money.api.transaction.form</field>
+        <field name="model">orange.money.api.transaction</field>
+        <field name="arch" type="xml">
+            <form string="Transaction Orange Money API">
+                <header>
+                    <button name="fetch_all_transactions" string="Récupérer les transactions"
+                        type="object" class="btn-primary" />
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Informations de base">
+                            <field name="transaction_id" />
+                            <field name="type" />
+                            <field name="status" />
+                            <field name="reference" />
+                            <field name="channel" />
+                            <field name="order_id" />
+                        </group>
+                        <group string="Montant">
+                            <field name="amount_value" />
+                            <field name="amount_unit" />
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Client">
+                            <field name="customer_msisdn" />
+                            <field name="customer_id" />
+                            <field name="customer_id_type" />
+                            <field name="customer_wallet_type" />
+                        </group>
+                        <group string="Partenaire">
+                            <field name="partner_id" />
+                            <field name="partner_id_type" />
+                            <field name="partner_wallet_type" />
+                        </group>
+                    </group>
+                    <group string="Dates">
+                        <field name="created_at" />
+                        <field name="updated_at" />
+                        <field name="request_date" />
+                    </group>
+                    <group string="URLs">
+                        <field name="success_redirect_url" />
+                        <field name="cancel_redirect_url" />
+                        <field name="success_url" />
+                    </group>
+                    <group string="Autres informations">
+                        <field name="receive_notification" />
+                        <field name="metadata" widget="text" />
+                        <field name="description" />
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action pour les transactions Orange Money API -->
+    <record id="action_orange_money_api_transaction" model="ir.actions.act_window">
+        <field name="name">Transactions Orange Money API</field>
+        <field name="res_model">orange.money.api.transaction</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+
+    <!-- <menuitem id="menu_orange_money_api_transaction" name="Transactions API"
+        parent="menu_orange_money_root" action="action_orange_money_api_transaction" /> -->
+
+
+</odoo>

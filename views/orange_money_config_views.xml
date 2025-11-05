@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Vue formulaire pour la configuration Orange Money -->
+    <record id="view_orange_money_config_form" model="ir.ui.view">
+        <field name="name">orange.money.config.form</field>
+        <field name="model">orange.money.config</field>
+        <field name="arch" type="xml">
+            <form string="Configuration Orange Money">
+                <header>
+                    <button name="test_connection" type="object" string="Tester la connexion"
+                        class="btn-primary" icon="fa-plug" />
+
+                    <button name="get_public_key" string="Obtenir la clé publique" type="object" />
+
+
+                    <!-- <button name="fetch_api_transactions" string="Récupérer les Transactions
+                    API"
+                        type="object" /> -->
+
+                    <field name="is_active" widget="boolean_toggle" />
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Nom de la configuration" />
+                        </h1>
+                        <div class="o_row">
+                            <field name="environment" widget="radio" options="{'horizontal': true}" />
+                        </div>
+                    </div>
+
+                    <notebook>
+                        <page string="Configuration API" name="api_config">
+                            <group>
+                                <group string="Authentification OAuth2">
+                                    <field name="client_id" />
+                                    <field name="client_secret" password="True" />
+                                    <field name="base_url" />
+                                </group>
+                                <group string="Informations Marchand">
+                                    <field name="merchant_code" />
+                                    <field name="merchant_name" />
+                                    <field name="default_currency" />
+                                </group>
+                            </group>
+
+                            <group string="URLs de Callback">
+                                <field name="callback_notification_url" />
+                            </group>
+                        </page>
+
+                        <page string="Token Sécurité" name="security">
+                            <group>
+                                <group string="Token OAuth2">
+                                    <field name="access_token" readonly="1" />
+                                    <field name="token_expires_at" readonly="1" />
+                                </group>
+                                <group string="Clé Publique">
+                                    <field name="public_key_id" readonly="1" />
+                                </group>
+                            </group>
+                            <group string="Clé Publique RSA">
+                                <field name="public_key" readonly="1" widget="text" />
+                            </group>
+                        </page>
+
+                        <page string="Statistiques" name="stats">
+                            <group>
+                                <group string="Transactions">
+                                    <field name="total_transactions" readonly="1" />
+                                    <field name="successful_transactions" readonly="1" />
+                                    <field name="failed_transactions" readonly="1" />
+                                </group>
+                                <group string="Dates">
+                                    <field name="created_at" readonly="1" />
+                                    <field name="updated_at" readonly="1" />
+                                </group>
+                            </group>
+
+                            <div class="oe_button_box" name="button_box">
+                                <button name="action_view_transactions" type="object"
+                                    class="oe_stat_button" icon="fa-list">
+                                    <field name="total_transactions" widget="statinfo"
+                                        string="Transactions" />
+                                </button>
+                            </div>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Vue liste pour la configuration Orange Money -->
+    <record id="view_orange_money_config_tree" model="ir.ui.view">
+        <field name="name">orange.money.config.tree</field>
+        <field name="model">orange.money.config</field>
+        <field name="arch" type="xml">
+            <tree string="Configurations Orange Money">
+                <field name="name" />
+                <field name="environment" />
+                <field name="merchant_code" />
+                <field name="merchant_name" />
+                <field name="is_active" widget="boolean_toggle" />
+                <field name="total_transactions" />
+                <field name="successful_transactions" />
+                <field name="created_at" />
+            </tree>
+        </field>
+    </record>
+
+
+    <!-- Vue recherche pour la configuration Orange Money -->
+    <record id="view_orange_money_config_search" model="ir.ui.view">
+        <field name="name">orange.money.config.search</field>
+        <field name="model">orange.money.config</field>
+        <field name="arch" type="xml">
+            <search string="Rechercher Configuration Orange Money">
+                <field name="name" />
+                <field name="merchant_code" />
+                <field name="merchant_name" />
+                <filter string="Active" name="active" domain="[('is_active', '=', True)]" />
+                <filter string="Sandbox" name="sandbox" domain="[('environment', '=', 'sandbox')]" />
+                <filter string="Production" name="production"
+                    domain="[('environment', '=', 'production')]" />
+                <group expand="0" string="Grouper par">
+                    <filter string="Environnement" name="group_environment"
+                        context="{'group_by': 'environment'}" />
+                    <filter string="Statut" name="group_active" context="{'group_by': 'is_active'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action pour la configuration Orange Money -->
+    <record id="action_orange_money_config" model="ir.actions.act_window">
+        <field name="name">Configuration Orange Money</field>
+        <field name="res_model">orange.money.config</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Créer votre première configuration Orange Money
+            </p>
+            <p>
+                Configurez vos paramètres d'API Orange Money pour commencer à accepter les
+                paiements.
+            </p>
+        </field>
+    </record>
+
+
+</odoo>

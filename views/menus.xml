@@ -1,0 +1,3 @@
+<odoo>
+    <menuitem id="menu_orange_money_root" name="Orange Money" sequence="10" />
+</odoo>

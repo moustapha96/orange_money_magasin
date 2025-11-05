@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Extension de la vue formulaire des commandes de vente -->
+    <record id="view_order_form_orange_money" model="ir.ui.view">
+        <field name="name">sale.order.form.orange.money</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form" />
+        <field name="arch" type="xml">
+
+
+            <xpath expr="//notebook/page[@name='order_lines']" position="after">
+                <page string="Paiement Orange Money" name="payment_orange_money">
+                    <field name="orange_money_transaction_ids" readonly="1">
+
+                        <tree decoration-success="status == 'SUCCESS'"
+                            decoration-info="status in ['INITIATED', 'PENDING', 'ACCEPTED']"
+                            decoration-danger="status in ['FAILED', 'REJECTED']"
+                            decoration-warning="status == 'CANCELLED'">
+                            <field name="reference" />
+                            <field name="transaction_id" />
+                            <field name="formatted_amount" />
+                            <field name="status" widget="badge" />
+                            <field name="created_at" />
+                            <field name="completed_at" />
+                            <button name="action_refresh_status" type="object"
+                                string="Actualiser" icon="fa-refresh"
+                                attrs="{'invisible': [('status', 'in', ['SUCCESS', 'FAILED', 'REJECTED', 'CANCELLED'])]}" />
+                        </tree>
+                    </field>
+                </page>
+            </xpath>
+
+
+            <!-- <xpath expr="//notebook" position="inside">
+                <page string="Orange Money" name="orange_money"
+                    attrs="{'invisible': [('orange_money_transaction_count', '=', 0)]}">
+
+                    <group>
+                        <group string="Actions">
+
+                            <button name="action_initiate_orange_money_payment" type="object"
+                                string="Paiement Orange Money" class="btn-primary"
+                                attrs="{'invisible': ['|', ('has_orange_money_config', '=', False), ('state', 'not in', ['draft',
+                    'sent', 'sale'])]}"
+                                icon="fa-mobile" />
+
+                        </group>
+                        <group string="Configuration">
+                            <field name="has_orange_money_config" />
+                        </group>
+                    </group>
+
+                    <field name="orange_money_transaction_ids" readonly="1">
+
+                        <tree decoration-success="status == 'SUCCESS'"
+                            decoration-info="status in ['INITIATED', 'PENDING', 'ACCEPTED']"
+                            decoration-danger="status in ['FAILED', 'REJECTED']"
+                            decoration-warning="status == 'CANCELLED'">
+                            <field name="reference" />
+                            <field name="transaction_id" />
+                            <field name="formatted_amount" />
+                            <field name="status" widget="badge" />
+                            <field name="created_at" />
+                            <field name="completed_at" />
+                            <button name="action_refresh_status" type="object"
+                                string="Actualiser" icon="fa-refresh"
+                                attrs="{'invisible': [('status', 'in', ['SUCCESS', 'FAILED', 'REJECTED', 'CANCELLED'])]}" />
+                        </tree>
+                    </field>
+
+
+                </page>
+            </xpath> -->
+        </field>
+    </record>
+
+    <!-- Extension de la vue liste des commandes de vente -->
+    <record id="view_quotation_tree_orange_money" model="ir.ui.view">
+        <field name="name">sale.order.tree.orange.money</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_quotation_tree" />
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='amount_total']" position="after">
+                <field name="orange_money_payment_status" widget="badge" optional="hide"
+                    decoration-success="orange_money_payment_status == 'full'"
+                    decoration-info="orange_money_payment_status == 'partial'"
+                    decoration-warning="orange_money_payment_status == 'overpaid'" />
+            </xpath>
+        </field>
+    </record>
+</odoo>

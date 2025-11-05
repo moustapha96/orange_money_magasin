@@ -1,0 +1,8 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_orange_money_config_user,orange.money.config.user,model_orange_money_config,base.group_user,1,0,0,0
+access_orange_money_config_manager,orange.money.config.manager,model_orange_money_config,sales_team.group_sale_manager,1,1,1,1
+access_orange_money_transaction_user,orange.money.transaction.user,model_orange_money_transaction,base.group_user,1,0,0,0
+access_orange_money_transaction_salesperson,orange.money.transaction.salesperson,model_orange_money_transaction,sales_team.group_sale_salesman,1,1,1,0
+access_orange_money_transaction_manager,orange.money.transaction.manager,model_orange_money_transaction,sales_team.group_sale_manager,1,1,1,1
+
+

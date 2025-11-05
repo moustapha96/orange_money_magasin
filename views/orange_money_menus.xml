@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Menu principal Orange Money -->
+        <menuitem id="menu_orange_money_root"
+            name="Orange Money"
+            sequence="50"
+            web_icon="orange_money,static/description/icon.png" />
+
+        <!-- Sous-menu Configuration -->
+        <menuitem id="menu_orange_money_config"
+            name="Configuration"
+            parent="menu_orange_money_root"
+            sequence="10" />
+
+        <!-- Action pour la vue Configuration -->
+        <record id="action_orange_money_config" model="ir.actions.act_window">
+            <field name="name">Configuration Orange Money</field>
+            <field name="res_model">orange.money.config</field>
+            <field name="view_mode">tree,form</field>
+            <field name="context">{}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    Créer votre première configuration Orange Money
+                </p>
+                <p>
+                    Configurez vos paramètres d'API Orange Money pour commencer à traiter les
+                    paiements.
+                </p>
+            </field>
+        </record>
+
+        <!-- Lier l'action au sous-menu Configuration -->
+        <menuitem id="menu_orange_money_config_action"
+            name="Configurations"
+            parent="menu_orange_money_config"
+            action="action_orange_money_config"
+            sequence="10" />
+
+
+        <!-- Action pour la vue Transactions -->
+        <record id="action_orange_money_transaction" model="ir.actions.act_window">
+            <field name="name">Transactions Orange Money</field>
+            <field name="res_model">orange.money.transaction</field>
+            <field name="view_mode">tree,form,kanban</field>
+            <field name="context">{}</field>
+            <field name="domain">[]</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    Aucune transaction Orange Money trouvée
+                </p>
+                <p>
+                    Les transactions Orange Money apparaîtront ici une fois que vous commencerez à
+                    traiter des paiements.
+                </p>
+            </field>
+        </record>
+
+
+        <!-- Action pour le tableau de bord -->
+        <record id="action_orange_money_dashboard" model="ir.actions.act_window">
+            <field name="name">Tableau de Bord Orange Money</field>
+            <field name="res_model">orange.money.config</field>
+            <field name="view_mode">kanban</field>
+            <field name="domain">[('is_active', '=', True)]</field>
+            <field name="context">{}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    Configurez Orange Money pour voir le tableau de bord
+                </p>
+                <p>
+                    Créez une configuration Orange Money active pour accéder aux statistiques.
+                </p>
+            </field>
+        </record>
+
+
+    </data>
+</odoo>
