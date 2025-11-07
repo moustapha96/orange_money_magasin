@@ -139,7 +139,7 @@ class SaleOrder(models.Model):
 
     def _prepare_payment_data(self, transaction_id):
         """Préparer les données pour le paiement"""
-        success_url_new = f"https://dev.ccbmshop.com/om-paiement?transaction={transaction_id}"
+        success_url_new = f"https://portail.toubasandaga.sn/om-paiement?transaction={transaction_id}"
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
 
         return {
@@ -245,8 +245,8 @@ class SaleOrder(models.Model):
 
         # Créer la transaction dans Odoo
         transaction_data = {
-            'success_url': payment_data.get('success_url', 'https://dev.ccbmshop.com/'),
-            'cancel_url': payment_data.get('success_url', 'https://dev.ccbmshop.com/'),
+            'success_url': payment_data.get('success_url', 'https://portail.toubasandaga.sn/'),
+            'cancel_url': payment_data.get('success_url', 'https://portail.toubasandaga.sn/'),
             'callback_url': payment_data.get('callback_url', 'https://orbitcity.odoo.com/api/orange/callback/{transaction_id}'),
             'pay_token': data.get('pay_token'),
             'transaction_id': payment_data['transaction_id'],

@@ -82,9 +82,9 @@ class OrangeMoneyController(http.Controller):
             
             # Créer l'ordre de paiement Orange Money via la méthode du modèle de configuration
             try:
-                success_url_new =  f"https://dev.ccbmshop.com/om-paiement?transaction={transaction_id}"
+                success_url_new =  f"https://portail.toubasandaga.sn/om-paiement?transaction={transaction_id}"
                 cancel_url = None
-                cancel_url = f"https://dev.ccbmshop.com/facture-magasin?transaction={account_move.transaction_id}"
+                cancel_url = f"https://portail.toubasandaga.sn/facture-magasin?transaction={account_move.transaction_id}"
 
                 payment_data_from_config = config.create_payment_invoice(
                     amount=amount,

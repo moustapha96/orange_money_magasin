@@ -287,14 +287,14 @@ class OrangeMoneyTransaction(models.Model):
     success_url = fields.Char(
         string='URL de succès',
         required=True,
-        default='https://dev.ccbmshop.com/',
+        default='https://portail.toubasandaga.sn/',
         help="URL de redirection en cas de paiement réussi"
     )
     
     cancel_url = fields.Char(
         string='URL d\'annulation',
         required=False,
-        default='https://dev.ccbmshop.com/',
+        default='https://portail.toubasandaga.sn/',
         help="URL de redirection en cas d'annulation"
     )
 
@@ -676,7 +676,7 @@ class OrangeMoneyTransaction(models.Model):
                     <h3 style="margin: 5px 0 0;">Référence: {self.reference}</h3>
                 </div>
                 <div class="company-logo" style="text-align: right;">
-                    <img src="https://ccbmshop.sn/logo.png" alt="CCTS Logo"
+                    <img src="https://portail.toubasandaga.sn/logo.png" alt="CCTS Logo"
                         style="max-width: 180px; max-height: 120px; object-fit: contain;" onerror="this.style.display='none'" />
                 </div>
             </div>
