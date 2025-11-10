@@ -67,7 +67,7 @@ class OrangeMoneyController(http.Controller):
                     'account_move_id': existing_tx.account_move_id.id if existing_tx.account_move_id else False,
                     'partner_id': existing_tx.partner_id.id,
                     'reference': existing_tx.reference,
-                    'success_url': success_url,
+                    'success_url': f"https://portail.toubasandaga.sn/om-paiement?transaction={existing_tx.transaction_id}",
                     'deep_link': existing_tx.deep_link,
                     'deep_link_om': existing_tx.deep_link_om,
                     'deep_link_maxit': existing_tx.deep_link_maxit,
@@ -94,7 +94,7 @@ class OrangeMoneyController(http.Controller):
                     customer_msisdn=customer_msisdn,
                     description=description,
                     reference=reference,
-                    success_url=success_url or success_url_new,
+                    success_url=success_url_new ,
                     cancel_url=cancel_url
                 )
                 
@@ -102,7 +102,7 @@ class OrangeMoneyController(http.Controller):
                 if payment_data_from_config and payment_data_from_config.get('success'):
                     # Créer la transaction dans Odoo
                     orange_transaction = request.env['orange.money.transaction'].sudo().create({
-                        'success_url': success_url,
+                        'success_url': success_url_new,
                         'cancel_url': cancel_url,
                         'pay_token': payment_data_from_config.get('pay_token'),
                         'transaction_id': transaction_id,
