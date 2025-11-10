@@ -44,7 +44,7 @@ class OrangeMoneyTransaction(models.Model):
     callback_url = fields.Char(
         string='URL de notification',
         required=False,
-        default='https://orbitcity.odoo.com/orange/webhook',
+        default='https://intranet.toubasandaga.sn/orange/webhook',
         help="URL pour les notifications webhook"
     )
     
@@ -748,7 +748,7 @@ class OrangeMoneyTransaction(models.Model):
                 <p><strong class="ccbm-branding">CCTS</strong> </p>
                 <p style="margin-top: 15px;">
                     <strong>Contacts:</strong> 70 922 17 75 | 70 843 04 36<br>
-                    <strong>Email:</strong> contact@ccts.sn | <strong>Web:</strong> www.ccts.sn
+                    <strong>Email:</strong> contact@ccts.sn | <strong>Web:</strong> www.toubasandaga.sn
                 </p>
             </div>
         </body>
