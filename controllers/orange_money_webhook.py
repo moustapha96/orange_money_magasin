@@ -67,7 +67,6 @@ class OrangeMoneyWebhookController(http.Controller):
 
             # Mapping et mise à jour du statut si nécessaire
             odoo_status = self._map_orange_status_to_odoo(status)
-
             if odoo_status and transaction_om:
                 _logger.info(f"Mise à jour du statut de la transaction {transaction_id} à {odoo_status}")
                 transaction_om.write({
@@ -84,30 +83,15 @@ class OrangeMoneyWebhookController(http.Controller):
                     'customer_id_type': customerIdType or '',
                 })
 
-                # Récupérer la commande associée à la transaction
-                account_move = transaction_om.account_move_id
-
-                pourcentage = (100 * transaction_om.amount) / account_move.amount_totat if account_move.amount_total else 0
-                # Créer une facture d'acompte
-                if status == 'SUCCESS' and pourcentage > 0:
-                    advance_invoice = self.create_advance_invoice(account_move, pourcentage)
-
-                    if advance_invoice:
-                        # Traiter le paiement
-                        payment_result = self.process_payment(account_move, transaction_om.amount, request.env.company)
-
-                        if not payment_result['success']:
-                            _logger.error(f"Erreur lors du traitement du paiement pour la transaction {transaction_id}")
-                            return {'status': 'error', 'message': 'Erreur lors du traitement du paiement'}
-                    else:
-                        _logger.error(f"Erreur lors de la création de la facture d'acompte pour la transaction {transaction_id}")
-                        return {'status': 'error', 'message': 'Erreur lors de la création de la facture d\'acompte'}
-                else:
-                    _logger.info(f"Aucun acompte à créer pour la transaction {transaction_id} avec pourcentage {pourcentage}")
-                    return {'status': 'success', 'message': 'Aucun acompte à créer'}
+                # Si le statut est 'SUCCESS', créer le paiement et le réconcilier avec la facture
+                if status == 'SUCCESS':
+                    # Créer le paiement et le réconcilier avec la facture
+                    payment_result = self.process_payment(transaction_om.account_move_id, transaction_om.amount, request.env.company)
+                    if not payment_result['success']:
+                        _logger.error(f"Erreur lors du traitement du paiement pour la transaction {transaction_id}")
+                        return {'status': 'error', 'message': 'Erreur lors du traitement du paiement'}
 
             return {'status': 'success', 'message': 'Transaction mise à jour avec succès'}
-
         except Exception as e:
             _logger.error(f"Erreur lors du traitement du webhook Orange Money : {str(e)}")
             return {'status': 'error', 'message': f'Erreur interne du serveur : {str(e)}'}
@@ -201,79 +185,39 @@ class OrangeMoneyWebhookController(http.Controller):
             _logger.error(f"Erreur lors de la création du paiement Orange Money: {str(e)}")
             return False
     
-    def create_advance_invoice(self, invoice, percentage):
-        """
-        Crée une facture d'acompte en utilisant l'assistant Odoo
-        Args:
-            order: Objet account.move
-            percentage: Pourcentage de l'acompte
-        Returns:
-            account.move: Facture d'acompte créée
-        """
-        user = request.env['res.users'].sudo().browse(request.env.uid)
-        if not user or user._is_public():
-            admin_user = request.env.ref('base.user_admin')
-            request.env = request.env(user=admin_user.id)
-            _logger.info("Création de la facture d'acompte pour la commande %s avec pourcentage %.2f%% avec l'utilisateur administrateur par défaut", order.name, percentage)
-
-        try:
-            
-            # Récupérer la facture créée
-            if invoice:
-                # Valider la facture si elle n'est pas déjà validée
-                if invoice.state == 'draft':
-                    invoice.action_post()
-                return invoice
-            else:
-                _logger.error("Impossible de créer la facture d'acompte pour la commande %s", invoice.name)
-                return None
-
-        except Exception as e:
-            _logger.exception("Erreur lors de la création de la facture d'acompte: %s", str(e))
-            return None
-
 
     def process_payment(self, invoice, amount, company):
         """
-        Traite le paiement pour la facture d'acompte
-
+        Traite le paiement pour la facture existante
         Args:
-            order: Commande de vente
-            invoice: Facture d'acompte
+            invoice: Facture existante (account.move)
             amount: Montant du paiement
             company: Société
-
         Returns:
             dict: Résultat du traitement
         """
-
-        user = request.env['res.users'].sudo().browse(request.env.uid)
-        if not user or user._is_public():
-            admin_user = request.env.ref('base.user_admin')
-            request.env = request.env(user=admin_user.id)
-            _logger.info("Traitement du paiement pour la facture d'acompte %s avec l'utilisateur administrateur par défaut", invoice.name)
-
         try:
             # Récupérer le journal de paiement
             journal = request.env['account.journal'].sudo().search([
                 ('code', '=', 'CSH1'),
                 ('company_id', '=', company.id)
             ], limit=1)
-
             if not journal:
                 journal = request.env['account.journal'].sudo().search([
                     ('type', 'in', ['cash', 'bank']),
                     ('company_id', '=', company.id)
                 ], limit=1)
 
-            payment_method_line = request.env['account.payment.method.line'].sudo().search([
-                ('journal_id', '=', journal.id),
-                ('payment_method_id.payment_type', '=', 'inbound')
-            ], limit=1)
+            if not journal:
+                return {'success': False, 'error': 'Aucun journal de paiement trouvé'}
 
-            # Enregistrer le paiement
-            payment = self._register_payment(invoice, amount, journal.id, payment_method_line.id)
+            # Récupérer une méthode de paiement
+            payment_method = request.env['account.payment.method'].sudo().search([('payment_type', '=', 'inbound')], limit=1)
+            if not payment_method:
+                return {'success': False, 'error': 'Aucune méthode de paiement trouvée'}
 
+            # Créer le paiement
+            payment = self._register_payment(invoice, amount, journal.id, payment_method.id)
             if not payment:
                 return {'success': False, 'error': 'Erreur lors de l\'enregistrement du paiement'}
 
@@ -285,44 +229,44 @@ class OrangeMoneyWebhookController(http.Controller):
                 'payment_id': payment.id,
                 'invoice_id': invoice.id,
                 'amount': amount,
-                'message': 'Paiement d\'acompte enregistré avec succès'
+                'message': 'Paiement enregistré et réconcilié avec succès'
             }
-
         except Exception as e:
-            _logger.exception("Erreur lors du traitement du paiement: %s", str(e))
+            _logger.error(f"Erreur lors du traitement du paiement: {str(e)}")
             return {'success': False, 'error': str(e)}
 
-    def _register_payment(self, invoice, amount, journal_id, payment_method_line_id=None):
+
+
+    def _register_payment(self, invoice, amount, journal_id, payment_method_id=None):
         """
-        Enregistre un paiement sur la facture.
-        
+        Enregistre un paiement sur la facture existante.
         Args:
-            order: Commande de vente
-            invoice: objet account.move
-            amount: montant du paiement
+            invoice: Facture existante (account.move)
+            amount: Montant du paiement
             journal_id: ID du journal (ex: banque)
-            
+            payment_method_id: ID de la méthode de paiement
         Returns:
             account.payment
         """
         try:
-            payment_obj = request.env['account.payment'].create({
+            payment = request.env['account.payment'].create({
                 'payment_type': 'inbound',
                 'partner_type': 'customer',
                 'partner_id': invoice.partner_id.id,
                 'amount': amount,
                 'journal_id': journal_id,
-                'payment_method_line_id': payment_method_line_id or request.env['account.payment.method.line'].search([('name', '=', 'Manual'), ('payment_method_id.payment_type', '=', 'inbound')], limit=1).id,
-                'date': fields.Date.today(),
-                'ref': f"{invoice.name}",
-                'is_reconciled': True,
-                'move_id': invoice.id
+                'payment_method_id': payment_method_id,
+                'ref': f"Paiement Orange Money - {invoice.name}",
             })
-            payment_obj.action_post()
-            return payment_obj
+
+            # Valider le paiement
+            payment.action_post()
+
+            return payment
         except Exception as e:
-            _logger.exception("Erreur lors de l'enregistrement du paiement : %s", str(e))
+            _logger.error(f"Erreur lors de l'enregistrement du paiement: {str(e)}")
             return None
+
         
 
     def _reconcile_payment_with_invoice(self, payment, invoice):

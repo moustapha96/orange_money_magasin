@@ -343,6 +343,36 @@ class OrangeMoneyTransaction(models.Model):
             record.has_qr_code = bool(record.qr_code_base64 or record.qr_code_url or record.deep_link)
 
 
+    def write(self, vals):
+        """Surcharger write pour mettre à jour la date de modification"""
+        if 'status' in vals:
+            vals['updated_at'] = fields.Datetime.now()
+
+            # Si le statut passe à 'SUCCESS', enregistrer la date
+            if vals.get('status') == 'SUCCESS' and self.status != 'SUCCESS':
+                vals['completed_at'] = fields.Datetime.now()
+                try:
+                    self._generate_invoice_pdf()
+                    _logger.info(f"Facture générée avec succès pour la transaction {self.transaction_id}")
+                except Exception as e:
+                    _logger.error(f"Erreur lors de la génération de la facture pour la transaction {self.transaction_id}: {str(e)}")
+
+                # Créer le paiement et le relier à la facture
+                try:
+                    self._create_payment_and_link_invoice()
+                    _logger.info(f"Paiement créé et réconcilié avec succès pour la transaction {self.transaction_id}")
+                except Exception as e:
+                    _logger.error(f"Erreur lors de la création du paiement pour la transaction {self.transaction_id}: {str(e)}")
+
+                # Poster un message dans le chatter
+                self.message_post(
+                    body=f"Transaction complétée avec succès. Montant: {self.formatted_amount}",
+                    message_type='notification'
+                )
+
+        return super().write(vals)
+
+
 
     def write(self, vals):
         """Surcharger write pour mettre à jour la date de modification"""
@@ -501,6 +531,114 @@ class OrangeMoneyTransaction(models.Model):
                     'type': 'warning',
                 }
             }
+
+
+    def _create_payment_and_link_invoice(self):
+        """Créer un paiement et le relier à la facture existante pour une transaction réussie"""
+        try:
+            _logger.info(f"Création du paiement pour la transaction Orange Money {self.transaction_id}")
+
+            # Vérifier que la transaction est bien complétée
+            if self.status != 'SUCCESS':
+                _logger.warning(f"La transaction {self.transaction_id} n'est pas complétée. Aucun paiement créé.")
+                return False
+
+            # Vérifier qu'une facture est liée
+            if not self.account_move_id:
+                _logger.error(f"Aucune facture liée à la transaction {self.transaction_id}.")
+                return False
+
+            # Vérifier qu'un client est lié
+            if not self.partner_id:
+                _logger.error(f"Aucun client lié à la transaction {self.transaction_id}.")
+                return False
+
+            # Récupérer les informations nécessaires
+            account_move = self.account_move_id
+            partner = self.partner_id
+            company = self.env.company
+
+            # Rechercher un journal de type 'bank' ou 'cash'
+            journal = self.env['account.journal'].search([
+                ('type', 'in', ['bank', 'cash']),
+                ('company_id', '=', company.id)
+            ], limit=1)
+
+            if not journal:
+                _logger.error("Aucun journal de paiement (bank/cash) trouvé pour la compagnie.")
+                return False
+
+            # Rechercher une méthode de paiement
+            payment_method = self.env['account.payment.method'].search([
+                ('payment_type', '=', 'inbound')
+            ], limit=1)
+
+            if not payment_method:
+                _logger.error("Aucune méthode de paiement trouvée.")
+                return False
+
+            # Créer le paiement
+            payment = self.env['account.payment'].create({
+                'payment_type': 'inbound',
+                'partner_type': 'customer',
+                'partner_id': partner.id,
+                'amount': self.amount,
+                'journal_id': journal.id,
+                'currency_id': account_move.currency_id.id,
+                'payment_method_id': payment_method.id,
+                'ref': f"Paiement Orange Money - {self.reference}",
+            })
+
+            # Valider le paiement
+            payment.action_post()
+
+            # Réconcilier automatiquement le paiement avec la facture
+            self._reconcile_payment_with_invoice(payment, account_move)
+
+            _logger.info(f"Paiement créé et réconcilié avec succès pour la transaction {self.transaction_id}")
+            return True
+        except Exception as e:
+            _logger.error(f"Erreur lors de la création du paiement: {str(e)}")
+            return False
+
+
+    def _reconcile_payment_with_invoice(self, payment, invoice):
+        """
+        Réconcilie le paiement avec la facture
+        Args:
+            payment: Objet account.payment
+            invoice: Objet account.move
+        """
+        try:
+            # Trouver les lignes de la facture à réconcilier
+            invoice_lines = invoice.line_ids.filtered(
+                lambda line: line.account_id.account_type == 'asset_receivable' and not line.reconciled
+            )
+            if not invoice_lines:
+                invoice_lines = invoice.line_ids.filtered(
+                    lambda line: line.account_id.internal_type == 'receivable' and not line.reconciled
+                )
+
+            # Trouver les lignes du paiement à réconcilier
+            payment_lines = payment.move_id.line_ids.filtered(
+                lambda line: line.account_id.account_type == 'asset_receivable'
+            )
+            if not payment_lines:
+                payment_lines = payment.move_id.line_ids.filtered(
+                    lambda line: line.account_id.internal_type == 'receivable'
+                )
+
+            # Réconcilier les lignes
+            lines_to_reconcile = invoice_lines + payment_lines
+            if lines_to_reconcile:
+                lines_to_reconcile.reconcile()
+                _logger.info(f"Paiement {payment.name} réconcilié avec la facture {invoice.name}")
+            else:
+                _logger.warning(f"Aucune ligne à réconcilier trouvée pour le paiement {payment.name} et la facture {invoice.name}")
+        except Exception as e:
+            _logger.error(f"Erreur lors de la réconciliation du paiement: {str(e)}")
+
+
 
     _sql_constraints = [
         ('transaction_id_unique', 'UNIQUE(transaction_id)', 'L\'ID de transaction doit être unique.'),
