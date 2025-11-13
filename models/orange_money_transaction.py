@@ -373,6 +373,30 @@
 #         return super().write(vals)
 
 
+
+#     def write(self, vals):
+#         """Surcharger write pour mettre à jour la date de modification"""
+#         if 'status' in vals:
+#             vals['updated_at'] = fields.Datetime.now()
+            
+#             # Si le statut passe à 'SUCCESS', enregistrer la date
+#             if vals.get('status') == 'SUCCESS' and self.status != 'SUCCESS':
+#                 vals['completed_at'] = fields.Datetime.now()
+#                 try:
+#                     self._generate_invoice_pdf()
+#                     _logger.info(f"Facture générée avec succès pour la transaction {self.transaction_id}")
+#                 except Exception as e:
+#                     _logger.error(f"Erreur lors de la génération de la facture pour la transaction {self.transaction_id}: {str(e)}")
+
+#                 # Poster un message dans le chatter
+#                 self.message_post(
+#                     body=f"Transaction complétée avec succès. Montant: {self.formatted_amount}",
+#                     message_type='notification'
+#                 )
+        
+#         return super().write(vals)
+
+
 #     @api.model
 #     def create(self, vals):
 #         """Surcharger create pour ajouter des validations"""
@@ -1082,12 +1106,14 @@ class OrangeMoneyTransaction(models.Model):
     _order = 'created_at desc'
     _rec_name = 'reference'
 
-    # Identifiants selon la documentation Orange Money
+    # ============================
+    # CHAMPS PRINCIPAUX
+    # ============================
     transaction_id = fields.Char(
         string="Transaction ID",
         required=True,
         index=True,
-        help="Identifiant unique de la transaction Orange Money",
+        help="Identifiant unique de la transaction Orange Money (référence métier)",
         tracking=True
     )
 
@@ -1111,7 +1137,7 @@ class OrangeMoneyTransaction(models.Model):
         help="URL pour les notifications webhook"
     )
 
-    # Type de transaction selon la documentation
+    # Type transaction
     transaction_type = fields.Selection([
         ('CASHIN', 'Cash In'),
         ('MERCHANT_PAYMENT', 'Paiement Marchand'),
@@ -1119,7 +1145,7 @@ class OrangeMoneyTransaction(models.Model):
         ('QR_PAYMENT', 'Paiement QR Code')
     ], string='Type de transaction', default='MERCHANT_PAYMENT', required=True)
 
-    # Informations de paiement
+    # Montant
     amount = fields.Float(
         string="Montant",
         required=True,
@@ -1132,20 +1158,19 @@ class OrangeMoneyTransaction(models.Model):
         ('XOF', 'Franc CFA (XOF)'),
     ], string='Devise', default='XOF', required=True)
 
-    # Informations client selon la documentation
+    # Client
     customer_msisdn = fields.Char(
         string="MSISDN Client",
         help="Numéro de téléphone du client (format: 771234567)"
     )
 
-    # Informations partenaire/marchand
+    # Marchand
     merchant_code = fields.Char(
         string="Code Marchand",
         help="Code marchand à 6 chiffres"
     )
 
-    # Statut selon la documentation Orange Money
-    # (On garde les statuts Orange mais on déclenche la logique sur SUCCESS)
+    # Statut interne (aligné sur Wave)
     status = fields.Selection([
         ('INITIATED', 'Initié'),
         ('PRE_INITIATED', 'Pré-initié'),
@@ -1157,7 +1182,7 @@ class OrangeMoneyTransaction(models.Model):
         ('REJECTED', 'Rejeté')
     ], string='Statut', default='INITIATED', required=True, index=True, tracking=True)
 
-    # Canal de paiement
+    # Canal / méthode
     channel = fields.Selection([
         ('API', 'API'),
         ('USSD', 'USSD'),
@@ -1167,7 +1192,6 @@ class OrangeMoneyTransaction(models.Model):
         ('MAXIT', 'Maxit')
     ], string='Canal', default='API')
 
-    # Méthode de paiement
     payment_method = fields.Selection([
         ('QRCODE', 'QR Code'),
         ('USSD', 'USSD'),
@@ -1185,7 +1209,7 @@ class OrangeMoneyTransaction(models.Model):
         help="Raison détaillée du statut actuel"
     )
 
-    # QR Code et liens
+    # QR / liens
     qr_code_url = fields.Char(
         string="URL QR Code",
         help="URL du QR code pour le paiement"
@@ -1238,13 +1262,15 @@ class OrangeMoneyTransaction(models.Model):
         help="Date de fin de validité"
     )
 
-    # Métadonnées
+    # Métadonnées brutes
     metadata = fields.Text(
         string="Métadonnées",
         help="Métadonnées JSON"
     )
 
-    # Champs pour la facture
+    # ============================
+    # FACTURE / PDF
+    # ============================
     url_facture = fields.Char(
         string="URL de la facture",
         help="URL vers le fichier PDF de la facture générée"
@@ -1270,7 +1296,14 @@ class OrangeMoneyTransaction(models.Model):
         help="Taille du fichier PDF de la facture en octets"
     )
 
-    # Réponses API
+    # Pour éviter d'envoyer le mail plusieurs fois
+    invoice_sent = fields.Boolean(
+        string="Facture envoyée",
+        default=False,
+        help="Permet d'envoyer l'email avec la facture une seule fois"
+    )
+
+    # Réponses API / webhook
     orange_response = fields.Text(
         string="Réponse Orange Money",
         help="Réponse complète de l'API Orange Money"
@@ -1317,7 +1350,7 @@ class OrangeMoneyTransaction(models.Model):
         tracking=True
     )
 
-    # Champs calculés
+    # Champs calculés visuels
     status_color = fields.Integer(
         string="Couleur du statut",
         compute='_compute_status_color',
@@ -1336,6 +1369,7 @@ class OrangeMoneyTransaction(models.Model):
         store=False
     )
 
+    # Divers
     pay_token = fields.Char(
         string="Pay Token",
         help="Token de paiement unique pour la transaction"
@@ -1357,7 +1391,7 @@ class OrangeMoneyTransaction(models.Model):
         string='URL d\'annulation',
         required=False,
         default='https://portail.toubasandaga.sn/',
-        help="URL de redirection en cas d'annulation"
+        help="URL de redirection en cas d\'annulation"
     )
 
     customer_id = fields.Char(
@@ -1395,23 +1429,22 @@ class OrangeMoneyTransaction(models.Model):
     # ============================
     @api.depends('status')
     def _compute_status_color(self):
-        """Calculer la couleur selon le statut Orange Money"""
+        """Couleur de badge dans tree/kanban."""
         color_map = {
-            'INITIATED': 4,      # Bleu
-            'PRE_INITIATED': 4,  # Bleu
-            'PENDING': 4,        # Bleu
-            'ACCEPTED': 9,       # Violet
-            'SUCCESS': 10,       # Vert
-            'FAILED': 1,         # Rouge
-            'CANCELLED': 3,      # Jaune
-            'REJECTED': 1,       # Rouge
+            'INITIATED': 4,
+            'PRE_INITIATED': 4,
+            'PENDING': 4,
+            'ACCEPTED': 9,
+            'SUCCESS': 10,
+            'FAILED': 1,
+            'CANCELLED': 3,
+            'REJECTED': 1,
         }
         for record in self:
             record.status_color = color_map.get(record.status, 0)
 
     @api.depends('amount', 'currency')
     def _compute_formatted_amount(self):
-        """Formater le montant avec la devise"""
         for record in self:
             if record.currency == 'XOF':
                 record.formatted_amount = f"{record.amount:,.0f} FCFA"
@@ -1420,38 +1453,30 @@ class OrangeMoneyTransaction(models.Model):
 
     @api.depends('qr_code_base64', 'qr_code_url', 'deep_link')
     def _compute_has_qr_code(self):
-        """Vérifier si la transaction a un QR code"""
         for record in self:
             record.has_qr_code = bool(record.qr_code_base64 or record.qr_code_url or record.deep_link)
 
     # ============================
-    # WRITE : comme Wave, version unique
+    # OVERRIDE WRITE : cœur logique
     # ============================
     def write(self, vals):
-        """Mettre à jour updated_at + gérer passage à SUCCESS (PDF + paiement)"""
+        """On centralise ici : completed_at + PDF + paiement + mail."""
         if 'status' in vals:
             _logger.info(
                 "Changement de statut de la transaction %s: %s -> %s",
                 self.ids, self.mapped('status'), vals.get('status')
             )
-            vals['updated_at'] = fields.Datetime.now()
-
-            # Si le statut passe à 'SUCCESS', on enregistre la date
-            # (on ne fait que setter completed_at ici, le reste après super)
-            if vals.get('status') == 'SUCCESS':
-                # On gère cas multi-records en post-traitement
-                pass
+            vals.setdefault('updated_at', fields.Datetime.now())
 
         res = super(OrangeMoneyTransaction, self).write(vals)
 
-        # Post-traitement après écriture pour ne pas faire plusieurs fois super().write
         if 'status' in vals:
             for record in self:
-                # Déclenchement au moment où on vient d'arriver en SUCCESS
+                # On ne déclenche qu'au premier passage en SUCCESS
                 if record.status == 'SUCCESS' and not record.completed_at:
                     record.completed_at = fields.Datetime.now()
 
-                    # Générer la facture PDF
+                    # 1) Génération du PDF
                     try:
                         record._generate_invoice_pdf()
                         _logger.info(
@@ -1464,20 +1489,16 @@ class OrangeMoneyTransaction(models.Model):
                             record.transaction_id, str(e)
                         )
 
-                    # Créer le paiement et le lier à la facture
+                    # 2) Création paiement + réconciliation + mail
                     try:
                         record._create_payment_and_link_invoice()
-                        _logger.info(
-                            "Paiement créé et réconcilié avec succès pour la transaction %s",
-                            record.transaction_id
-                        )
                     except Exception as e:
                         _logger.error(
                             "Erreur lors de la création du paiement pour la transaction %s: %s",
                             record.transaction_id, str(e)
                         )
 
-                    # Message dans le chatter
+                    # 3) Message chatter
                     record.message_post(
                         body=f"Transaction complétée avec succès. Montant: {record.formatted_amount}",
                         message_type='notification'
@@ -1490,8 +1511,7 @@ class OrangeMoneyTransaction(models.Model):
     # ============================
     @api.model
     def create(self, vals):
-        """Surcharger create pour validations + merchant_code depuis config"""
-        # Vérifier l'unicité du transaction_id
+        """Validation + merchant_code auto comme pour Wave."""
         if vals.get('transaction_id'):
             existing = self.search([('transaction_id', '=', vals['transaction_id'])])
             if existing:
@@ -1499,14 +1519,12 @@ class OrangeMoneyTransaction(models.Model):
                     f"Une transaction avec l'ID '{vals['transaction_id']}' existe déjà."
                 )
 
-        # Merchant code depuis config
         config = self.env['orange.money.config'].sudo().search([('is_active', '=', True)], limit=1)
         if config and not vals.get('merchant_code'):
             vals['merchant_code'] = config.merchant_code
 
         record = super().create(vals)
 
-        # Message de création
         record.message_post(
             body=f"Transaction Orange Money créée pour un montant de {record.formatted_amount}",
             message_type='notification'
@@ -1515,11 +1533,11 @@ class OrangeMoneyTransaction(models.Model):
         return record
 
     # ============================
-    # ACTIONS (refresh statut / view invoice / partner / payment link)
+    # ACTIONS UI
     # ============================
-
     def action_refresh_status(self):
-        """Action pour rafraîchir le statut depuis Orange Money (avec mapping)"""
+        """Bouton pour aller chercher le statut côté API."""
+        self.ensure_one()
         try:
             config = self.env['orange.money.config'].search([('is_active', '=', True)], limit=1)
             if not config:
@@ -1578,7 +1596,7 @@ class OrangeMoneyTransaction(models.Model):
             }
 
     def action_view_invoice(self):
-        """Ouvrir la facture associée"""
+        """Ouvrir la facture liée."""
         self.ensure_one()
         if self.account_move_id:
             return {
@@ -1601,7 +1619,7 @@ class OrangeMoneyTransaction(models.Model):
             }
 
     def action_view_partner(self):
-        """Ouvrir le client associé"""
+        """Ouvrir le client lié."""
         self.ensure_one()
         if self.partner_id:
             return {
@@ -1624,7 +1642,8 @@ class OrangeMoneyTransaction(models.Model):
             }
 
     def action_download_invoice(self):
-        """Télécharger la facture PDF"""
+        """Téléchargement direct du binaire."""
+        self.ensure_one()
         if self.facture_pdf:
             return {
                 'type': 'ir.actions.act_url',
@@ -1643,7 +1662,8 @@ class OrangeMoneyTransaction(models.Model):
             }
 
     def action_view_invoice_url(self):
-        """Ouvrir l'URL publique de la facture"""
+        """Ouvrir l’URL publique de la facture."""
+        self.ensure_one()
         if self.url_facture:
             return {
                 'type': 'ir.actions.act_url',
@@ -1662,7 +1682,8 @@ class OrangeMoneyTransaction(models.Model):
             }
 
     def action_regenerate_invoice(self):
-        """Régénérer la facture manuellement"""
+        """Bouton manuel pour régénérer le PDF."""
+        self.ensure_one()
         if self.status == 'SUCCESS':
             try:
                 url_facture = self._generate_invoice_pdf()
@@ -1708,7 +1729,8 @@ class OrangeMoneyTransaction(models.Model):
             }
 
     def action_view_payment_link(self):
-        """Ouvrir le lien de paiement"""
+        """Ouvrir le lien de paiement frontend."""
+        self.ensure_one()
         if self.payment_url:
             return {
                 'type': 'ir.actions.act_url',
@@ -1727,10 +1749,10 @@ class OrangeMoneyTransaction(models.Model):
             }
 
     # ============================
-    # FACTURE : PDF / mail (repris de ton code)
+    # FACTURE : PDF + MAIL
     # ============================
     def _generate_invoice_pdf(self):
-        """Générer la facture PDF pour la transaction"""
+        """Construit et sauvegarde le PDF (ir.attachment + champs Binary)."""
         try:
             _logger.info(f"Génération de la facture PDF pour la transaction {self.transaction_id}")
 
@@ -1760,8 +1782,6 @@ class OrangeMoneyTransaction(models.Model):
                     'facture_generated_at': fields.Datetime.now(),
                     'facture_size': len(pdf_content)
                 })
-
-                # self._auto_save_invoice_info()
                 _logger.info(f"Facture PDF générée avec succès: {url_facture}")
                 return url_facture
             else:
@@ -1771,10 +1791,8 @@ class OrangeMoneyTransaction(models.Model):
             _logger.error(f"Erreur lors de la génération de la facture PDF: {str(e)}")
             return False
 
-
-
     def _get_invoice_html_content(self):
-        """Contenu HTML de la facture (reprend ton template actuel)"""
+        """Template HTML (comme ton code)."""
         company = self.env.company
         date_facture = self.completed_at.strftime('%d/%m/%Y %H:%M:%S') if self.completed_at else datetime.now().strftime('%d/%m/%Y %H:%M:%S')
 
@@ -1896,7 +1914,7 @@ class OrangeMoneyTransaction(models.Model):
         return html_content
 
     def _html_to_pdf(self, html_content):
-        """Convertir le HTML en PDF via wkhtmltopdf Odoo"""
+        """Conversion HTML → PDF via wkhtmltopdf Odoo."""
         try:
             return self.env['ir.actions.report']._run_wkhtmltopdf(
                 [html_content],
@@ -1913,12 +1931,11 @@ class OrangeMoneyTransaction(models.Model):
             _logger.error(f"Erreur lors de la conversion HTML vers PDF: {str(e)}")
             return False
 
-    
     def _auto_save_invoice_info(self):
-        """Enregistrer automatiquement les informations après génération de la facture"""
+        """Log + envoi mail si pas encore envoyé."""
+        self.ensure_one()
         try:
             _logger.info(f"Enregistrement automatique des informations pour la transaction {self.transaction_id}")
-            # Créer un enregistrement dans un modèle de log ou historique
             invoice_log_data = {
                 'transaction_id': self.transaction_id,
                 'orange_id': self.orange_id,
@@ -1934,22 +1951,22 @@ class OrangeMoneyTransaction(models.Model):
                 'generated_at': self.facture_generated_at,
                 'status': 'completed'
             }
-            # Enregistrer dans les logs système
             _logger.info(f"Facture générée et enregistrée: {json.dumps(invoice_log_data, default=str)}")
-            # Envoyer la notification email (avec PDF attaché)
-            self._send_invoice_notification()
+
+            # Envoi mail une seule fois
+            if not self.invoice_sent:
+                if self._send_invoice_notification():
+                    self.sudo().write({'invoice_sent': True})
             return True
         except Exception as e:
             _logger.error(f"Erreur lors de l'enregistrement automatique: {str(e)}")
             return False
-        
-
 
     def _send_invoice_notification(self):
-        """Envoyer une notification après génération de la facture (avec PDF en pièce jointe)"""
+        """Envoi du mail avec PDF attaché (ou lien)."""
         try:
             if self.partner_id and self.partner_id.email:
-                # Chercher le PDF attaché à la transaction
+                # On récupère l’attachement PDF lié à cette transaction
                 attachment = self.env['ir.attachment'].sudo().search([
                     ('res_model', '=', self._name),
                     ('res_id', '=', self.id),
@@ -1986,7 +2003,7 @@ class OrangeMoneyTransaction(models.Model):
                     'state': 'outgoing',
                 }
 
-                # Joindre le PDF s'il existe
+                # Attach le PDF si présent
                 if attachment:
                     email_values['attachment_ids'] = [(4, attachment.id)]
 
@@ -2002,15 +2019,12 @@ class OrangeMoneyTransaction(models.Model):
         except Exception as e:
             _logger.error(f"Erreur lors de l'envoi de la notification: {str(e)}")
             return False
-        
-
-
 
     # ============================
-    # PAIEMENT & RÉCONCILIATION (comme Wave)
+    # PAIEMENT & RÉCONCILIATION
     # ============================
     def _create_payment_and_link_invoice(self):
-        """Créer un paiement et le relier à la facture existante pour une transaction SUCCESS"""
+        """Créer un paiement + réconcilier + envoyer mail (appelé uniquement au SUCCESS)."""
         try:
             _logger.info(f"Création du paiement pour la transaction Orange Money {self.transaction_id}")
 
@@ -2033,6 +2047,7 @@ class OrangeMoneyTransaction(models.Model):
             partner = self.partner_id
             company = self.env.company
 
+            # Journal de paiement
             journal = self.env['account.journal'].search([
                 ('type', 'in', ['bank', 'cash']),
                 ('company_id', '=', company.id)
@@ -2063,12 +2078,12 @@ class OrangeMoneyTransaction(models.Model):
 
             payment.action_post()
             self._reconcile_payment_with_invoice(payment, account_move)
-            
+
+            # Log + email (avec garde-fou invoice_sent)
             try:
-                self._auto_save_invoice_info()  # log + _send_invoice_notification()
+                self._auto_save_invoice_info()
             except Exception as e:
                 _logger.error(f"Erreur lors de l'enregistrement automatique / envoi du mail: {str(e)}")
-
 
             _logger.info(
                 "Paiement créé et réconcilié avec succès pour la transaction %s",
@@ -2080,7 +2095,7 @@ class OrangeMoneyTransaction(models.Model):
             return False
 
     def _reconcile_payment_with_invoice(self, payment, invoice):
-        """Réconcilier le paiement avec la facture"""
+        """Réconciliation classique (compatible v14+)."""
         try:
             invoice_lines = invoice.line_ids.filtered(
                 lambda line: line.account_id.account_type == 'asset_receivable' and not line.reconciled
@@ -2114,9 +2129,9 @@ class OrangeMoneyTransaction(models.Model):
             _logger.error(f"Erreur lors de la réconciliation du paiement: {str(e)}")
 
     def action_check_status(self):
-        """Vérifier le statut d'une transaction en fonction de l'ID de transaction"""
+        """Bouton simple pour vérifier & afficher une notif."""
+        self.ensure_one()
         try:
-           
             transactionId = self.transactionId or self.transaction_id
 
             config = self.env['orange.money.config'].sudo().search([('is_active', '=', True)], limit=1)
@@ -2130,11 +2145,11 @@ class OrangeMoneyTransaction(models.Model):
                         'type': 'danger',
                     }
                 }
-            
+
             api_response = config.get_transaction_status(transactionId)
 
             if not api_response:
-                _logger.error(f"Aucune transaction API trouvée avec l'account_move_id: {transactionId}")
+                _logger.error(f"Aucune transaction API trouvée avec l'ID: {transactionId}")
                 return {
                     'type': 'ir.actions.client',
                     'tag': 'display_notification',
@@ -2144,14 +2159,14 @@ class OrangeMoneyTransaction(models.Model):
                         'type': 'danger',
                     }
                 }
-            
-            # Renvoyer le statut de la transaction API et afficher une notification de succès
+
+            # Ici on pourrait faire self.write(...) si tu veux synchro
             return {
                 'type': 'ir.actions.client',
                 'tag': 'display_notification',
                 'params': {
                     'title': 'Succès',
-                    'message': f'Le statut de la transaction a été vérifié \n Statut: {self.status}',
+                    'message': f'Le statut de la transaction a été vérifié.\nStatut actuel: {self.status}',
                     'type': 'success',
                 }
             }
@@ -2168,7 +2183,7 @@ class OrangeMoneyTransaction(models.Model):
             }
 
     # ============================
-    # CONTRAINTES SQL
+    # CONTRAINTE SQL
     # ============================
     _sql_constraints = [
         ('transaction_id_unique', 'UNIQUE(transaction_id)', "L'ID de transaction doit être unique."),
