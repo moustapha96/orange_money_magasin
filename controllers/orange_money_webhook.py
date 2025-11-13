@@ -309,6 +309,7 @@
 #             _logger.exception("Erreur lors de la réconciliation du paiement: %s", str(e))
 #             return None
 
+
 from odoo import http, fields
 from odoo.http import request, Response
 import json
@@ -316,7 +317,6 @@ import logging
 from datetime import datetime
 
 _logger = logging.getLogger(__name__)
-
 
 class OrangeMoneyWebhookController(http.Controller):
     """
@@ -333,9 +333,10 @@ class OrangeMoneyWebhookController(http.Controller):
         Mapper les statuts Orange Money vers des statuts internes
         (mêmes logiques que Wave : 'completed', 'failed', 'pending', etc.)
         """
+        _logger.debug(f"Mapping statut Orange : {orange_status}")
         if not orange_status:
+            _logger.debug("Statut vide, retour 'pending'")
             return 'pending'
-
         s = orange_status.upper()
         status_mapping = {
             'SUCCESS': 'completed',
@@ -343,30 +344,35 @@ class OrangeMoneyWebhookController(http.Controller):
             'FAILED': 'failed',
             'PENDING': 'pending',
             'PROCESSING': 'pending',
-            'EXPIRED': 'failed',     # ou 'expired' si tu veux distinguer
+            'EXPIRED': 'failed',
             'CANCELLED': 'cancelled',
             'CANCELED': 'cancelled',
             'REJECTED': 'failed',
         }
-        return status_mapping.get(s, 'pending')
+        mapped_status = status_mapping.get(s, 'pending')
+        _logger.debug(f"Statut mappé : {mapped_status}")
+        return mapped_status
 
     def convert_iso_format_to_custom_format(self, iso_date):
         """
         Convertit '2024-01-01T12:34:56Z' -> '2024-01-01 12:34:56'
         """
         if not iso_date:
+            _logger.debug("Date vide, retour None")
             return None
         try:
-            return datetime.strptime(iso_date, "%Y-%m-%dT%H:%M:%SZ").strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
-        except Exception:
+            converted = datetime.strptime(iso_date, "%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m-%d %H:%M:%S")
+            _logger.debug(f"Date convertie : {converted}")
+            return converted
+        except Exception as e:
+            _logger.error(f"Erreur de conversion de date : {str(e)}")
             return None
 
     def _json_response(self, data, status):
         """
         Réponse JSON standard (comme pour Wave)
         """
+        _logger.debug(f"Réponse JSON envoyée : {data}, statut : {status}")
         return Response(
             json.dumps(data),
             status=status,
@@ -383,23 +389,25 @@ class OrangeMoneyWebhookController(http.Controller):
         Endpoint pour recevoir et traiter les notifications webhook Orange Money
         (même structure que /wave/webhook)
         """
+        _logger.info("Webhook Orange Money : Début du traitement")
         try:
             body = request.httprequest.get_data()
             try:
                 data = json.loads(body.decode('utf-8'))
-                _logger.info("Webhook Orange Money reçu Request : %s", request.httprequest)
-                _logger.info("Webhook Orange Money headers : %s", request.httprequest.headers)
-                _logger.info(f"Webhook Orange Money payload : {data}")
-            except json.JSONDecodeError:
-                _logger.exception("JSON invalide reçu sur /orange/webhook")
+                _logger.info("Webhook Orange Money : Request reçue")
+                _logger.info(f"Webhook Orange Money : Headers : {request.httprequest.headers}")
+                _logger.info(f"Webhook Orange Money : Payload : {data}")
+            except json.JSONDecodeError as e:
+                _logger.error(f"JSON invalide reçu : {str(e)}")
                 return self._json_response({'error': 'Invalid JSON'}, 400)
 
             result = self._process_orange_webhook(data)
             status_code = 200 if result.get('success') else 400
+            _logger.info(f"Webhook Orange Money : Résultat du traitement : {result}")
             return self._json_response(result, status_code)
 
         except Exception as e:
-            _logger.exception("Erreur lors du traitement du webhook Orange Money : %s", str(e))
+            _logger.error(f"Erreur globale lors du traitement du webhook : {str(e)}", exc_info=True)
             return self._json_response({'error': 'Internal server error'}, 500)
 
     # ======================================================================
@@ -413,22 +421,19 @@ class OrangeMoneyWebhookController(http.Controller):
         - Met à jour les champs (status, webhook_data, etc.)
         - Si statut 'completed' => process_payment sur la facture liée
         """
+        _logger.info("Traitement du webhook Orange Money : Début")
 
         # --- Extraction des données principales ---
-
         amount_data = data.get('amount', {})
-        # suivant ton payload, amount_data peut être un dict ou un nombre
-        # on laisse transaction_om.amount comme source de vérité pour le montant payé
-
         customer = data.get('customer', {}) or {}
         customerIdType = customer.get('idType')
         customerId = customer.get('id')
-        _logger.info(f'customer : {customer}')
+        _logger.debug(f"Customer : {customer}")
 
         partner = data.get('partner', {}) or {}
         partnerIdType = partner.get('idType')
         partnerId = partner.get('id')
-        _logger.info(f'partner : {partner}')
+        _logger.debug(f"Partner : {partner}")
 
         channel = data.get('channel')
         payment_method = data.get('paymentMethod')
@@ -439,19 +444,18 @@ class OrangeMoneyWebhookController(http.Controller):
         metadata = data.get('metadata', {})
 
         _logger.info(
-            "channel : %s, payment_method : %s, status : %s, "
-            "orange_transaction_id : %s, type_payment : %s",
-            channel, payment_method, status_upper, orange_transaction_id, type_payment
+            f"Données principales : channel={channel}, payment_method={payment_method}, "
+            f"status={status_upper}, orange_transaction_id={orange_transaction_id}, type={type_payment}"
         )
-        _logger.info(f"metadata brut : {metadata}")
-        _logger.info(f"payload complet : {data}")
+        _logger.debug(f"Metadata brut : {metadata}")
+        _logger.debug(f"Payload complet : {data}")
 
         # --- Métadonnées : string -> dict éventuel ---
         if isinstance(metadata, str):
             try:
                 metadata = json.loads(metadata)
-            except json.JSONDecodeError:
-                _logger.error("Erreur de décodage JSON dans les métadonnées")
+            except json.JSONDecodeError as e:
+                _logger.error(f"Erreur de décodage JSON dans les métadonnées : {str(e)}")
                 return {'success': False, 'error': 'Erreur de décodage JSON dans les métadonnées'}
 
         transaction_id = metadata.get('transaction_id', '')
@@ -466,8 +470,7 @@ class OrangeMoneyWebhookController(http.Controller):
         )
         _logger.info(f"Transaction trouvée : {transaction_om}")
         _logger.info(
-            "Transaction ID : %s, Orange Transaction ID : %s, Status : %s",
-            transaction_id, orange_transaction_id, status_upper
+            f"Transaction ID : {transaction_id}, Orange Transaction ID : {orange_transaction_id}, Status : {status_upper}"
         )
 
         if not transaction_om:
@@ -476,7 +479,7 @@ class OrangeMoneyWebhookController(http.Controller):
 
         # --- Mapping du statut vers statut interne ---
         new_status = self._map_orange_status_to_odoo(status_upper)
-        _logger.info(f"Mapping statut Orange (%s) -> statut interne (%s)", status_upper, new_status)
+        _logger.info(f"Mapping statut Orange ({status_upper}) -> statut interne ({new_status})")
 
         # --- Mise à jour de la transaction ---
         vals = {
@@ -493,29 +496,30 @@ class OrangeMoneyWebhookController(http.Controller):
             'customer_id_type': customerIdType or '',
         }
 
-        # Si tu as une date de complétion dans le payload (à adapter selon ton API)
+        # Si date de complétion dans le payload
         when_completed = data.get('performedAt') or data.get('when_completed')
         if when_completed:
             vals['completed_at'] = self.convert_iso_format_to_custom_format(when_completed)
 
         transaction_om.write(vals)
+        _logger.info(f"Transaction mise à jour : {vals}")
 
         # --- Si status 'completed' => paiement sur la facture liée ---
         if new_status == 'completed':
             invoice = transaction_om.account_move_id
             if not invoice:
-                _logger.error("Aucune facture liée à la transaction %s", transaction_id)
+                _logger.error(f"Aucune facture liée à la transaction {transaction_id}")
                 return {'success': False, 'error': 'No linked invoice found'}
 
             _logger.info(
-                "Traitement du paiement Orange Money pour facture %s, transaction %s, montant %s",
-                invoice.name, transaction_id, transaction_om.amount
+                f"Traitement du paiement Orange Money pour facture {invoice.name}, "
+                f"transaction {transaction_id}, montant {transaction_om.amount}"
             )
+
             result = self.process_payment(invoice, transaction_om.amount, request.env.company)
             if not result.get('success'):
                 _logger.error(
-                    "Erreur lors du traitement du paiement pour la transaction %s: %s",
-                    transaction_id, result.get('error')
+                    f"Erreur lors du traitement du paiement pour la transaction {transaction_id}: {result.get('error')}"
                 )
                 return result
 
@@ -528,13 +532,8 @@ class OrangeMoneyWebhookController(http.Controller):
     def process_payment(self, invoice, amount, company):
         """
         Traite le paiement pour la facture existante
-        Args:
-            invoice: Facture existante (account.move)
-            amount: Montant du paiement
-            company: Société
-        Returns:
-            dict: Résultat du traitement
         """
+        _logger.info(f"Traitement du paiement pour la facture {invoice.name}, montant {amount}")
         try:
             # Récupérer le journal de paiement
             journal = request.env['account.journal'].sudo().search([
@@ -546,8 +545,8 @@ class OrangeMoneyWebhookController(http.Controller):
                     ('type', 'in', ['cash', 'bank']),
                     ('company_id', '=', company.id)
                 ], limit=1)
-
             if not journal:
+                _logger.error("Aucun journal de paiement trouvé")
                 return {'success': False, 'error': 'Aucun journal de paiement trouvé'}
 
             # Récupérer une méthode de paiement
@@ -556,15 +555,18 @@ class OrangeMoneyWebhookController(http.Controller):
                 limit=1
             )
             if not payment_method:
+                _logger.error("Aucune méthode de paiement trouvée")
                 return {'success': False, 'error': 'Aucune méthode de paiement trouvée'}
 
             # Créer le paiement
             payment = self._register_payment(invoice, amount, journal.id, payment_method.id)
             if not payment:
+                _logger.error("Erreur lors de l'enregistrement du paiement")
                 return {'success': False, 'error': "Erreur lors de l'enregistrement du paiement"}
 
             # Réconcilier le paiement avec la facture
             self._reconcile_payment_with_invoice(payment, invoice)
+            _logger.info(f"Paiement enregistré et réconcilié avec succès pour la facture {invoice.name}")
 
             return {
                 'success': True,
@@ -573,21 +575,16 @@ class OrangeMoneyWebhookController(http.Controller):
                 'amount': amount,
                 'message': 'Paiement enregistré et réconcilié avec succès'
             }
+
         except Exception as e:
-            _logger.error(f"Erreur lors du traitement du paiement: {str(e)}")
+            _logger.error(f"Erreur globale lors du traitement du paiement : {str(e)}", exc_info=True)
             return {'success': False, 'error': str(e)}
 
     def _register_payment(self, invoice, amount, journal_id, payment_method_id=None):
         """
         Enregistre un paiement sur la facture existante.
-        Args:
-            invoice: Facture existante (account.move)
-            amount: Montant du paiement
-            journal_id: ID du journal (ex: banque)
-            payment_method_id: ID de la méthode de paiement
-        Returns:
-            account.payment
         """
+        _logger.info(f"Enregistrement du paiement pour la facture {invoice.name}, montant {amount}")
         try:
             payment_vals = {
                 'payment_type': 'inbound',
@@ -597,26 +594,21 @@ class OrangeMoneyWebhookController(http.Controller):
                 'journal_id': journal_id,
                 'payment_method_id': payment_method_id,
                 'ref': f"Paiement Orange Money - {invoice.name}",
-                # si tu veux coller encore plus à Wave :
                 'move_id': invoice.id,
             }
-
             payment = request.env['account.payment'].create(payment_vals)
             payment.action_post()
-
+            _logger.info(f"Paiement créé avec succès : {payment.id}")
             return payment
         except Exception as e:
-            _logger.error(f"Erreur lors de l'enregistrement du paiement: {str(e)}")
+            _logger.error(f"Erreur lors de l'enregistrement du paiement : {str(e)}", exc_info=True)
             return None
 
     def _reconcile_payment_with_invoice(self, payment, invoice):
         """
         Réconcilie le paiement avec la facture
-        
-        Args:
-            payment: Objet account.payment
-            invoice: Objet account.move
         """
+        _logger.info(f"Réconciliation du paiement {payment.name} avec la facture {invoice.name}")
         try:
             # Lignes de facture à réconcilier
             invoice_lines = invoice.line_ids.filtered(
@@ -639,16 +631,11 @@ class OrangeMoneyWebhookController(http.Controller):
             lines_to_reconcile = invoice_lines + payment_lines
             if lines_to_reconcile:
                 lines_to_reconcile.reconcile()
-                _logger.info(
-                    "Paiement %s réconcilié avec facture %s",
-                    payment.name, invoice.name
-                )
+                _logger.info(f"Paiement {payment.name} réconcilié avec facture {invoice.name}")
             else:
                 _logger.warning(
-                    "Aucune ligne à réconcilier trouvée pour le paiement %s et la facture %s",
-                    payment.name, invoice.name
+                    f"Aucune ligne à réconcilier trouvée pour le paiement {payment.name} et la facture {invoice.name}"
                 )
-
         except Exception as e:
-            _logger.exception("Erreur lors de la réconciliation du paiement: %s", str(e))
+            _logger.error(f"Erreur lors de la réconciliation du paiement : {str(e)}", exc_info=True)
             return None

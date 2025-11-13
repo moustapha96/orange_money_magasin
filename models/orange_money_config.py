@@ -249,7 +249,7 @@ class OrangeMoneyConfig(models.Model):
             public_key = self.get_public_key()
             
             # api/payment/callback/<string:transactionId>
-            callback_url =  self.callback_notification_url or f"https://orbitcity.odoo.com/orange/webhook"
+            callback_url =  self.callback_notification_url or f"https://intanet.toubasandaga.sn/orange/webhook"
             
             headers = {
                 'Authorization': f'Bearer {token}',
@@ -510,7 +510,6 @@ class OrangeMoneyConfig(models.Model):
                 valid_for = qr_data.get('validFor', {})
                 end_date_time = valid_for.get('endDateTime')
                 start_date_time = valid_for.get('startDateTime')
-                # callback_url = f"https://orbitcity.odoo.com/api/orange/callback/{transaction_id}" 
                 callback_url = self.callback_notification_url
             
 
