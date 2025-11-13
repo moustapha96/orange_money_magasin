@@ -248,7 +248,7 @@ class AccountMove(models.Model):
         transaction_data = {
             'success_url': payment_data.get('success_url', 'https://portail.toubasandaga.sn/'),
             'cancel_url': payment_data.get('success_url', 'https://portail.toubasandaga.sn/'),
-            'callback_url': payment_data.get('callback_url', 'https://orbitcity.odoo.com/api/orange/callback/{transaction_id}'),
+            'callback_url': payment_data.get('callback_url', 'https://intranet.toubasandaga.sn/api/orange/callback/{transaction_id}'),
             'pay_token': data.get('pay_token'),
             'transaction_id': payment_data['transaction_id'],
             'amount': payment_data['amount'],
@@ -397,4 +397,15 @@ class AccountMove(models.Model):
                 'mobile': self.partner_id.mobile,
                 'adress': self.partner_id.city
             }
+        }
+    
+
+    def action_view_orange_transactions(self):
+        self.ensure_one()
+        return {
+            'name': 'Transactions Orange Money',
+            'type': 'ir.actions.act_window',
+            'view_mode': 'tree,form',
+            'res_model': 'orange.money.transaction',
+            'domain': [('account_move_id', '=', self.id)],
         }
