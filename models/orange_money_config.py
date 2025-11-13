@@ -44,7 +44,7 @@ class OrangeMoneyConfig(models.Model):
     callback_notification_url = fields.Char(
         string='URL de notification',
         required=True,
-        default='https://orbitcity.odoo.com/orange/webhook',
+        default='https://intranet.toubasandaga.sn/orange/webhook',
         help="URL pour les notifications webhook"
     )
     
@@ -134,6 +134,19 @@ class OrangeMoneyConfig(models.Model):
         compute='_compute_transaction_stats',
         store=False
     )
+
+    api_key = fields.Char(
+        string='API Key',
+        required=True,
+        help="Clé API fournie par Orange pour l\'accès aux services (ex: CCTS@2025)"
+    )
+
+    last_webhook_status = fields.Char(
+        string="Dernière réponse webhook",
+        readonly=True,
+        help="Dernière réponse reçue lors de la configuration du webhook."
+    )
+
 
     @api.depends('is_active')
     def _compute_transaction_stats(self):
@@ -586,5 +599,85 @@ class OrangeMoneyConfig(models.Model):
             'context': {'create': False},
             'target': 'current',
         }
+    
+
+    def action_register_webhook(self):
+        """
+        Configurer le webhook côté Orange Money.
+
+        Équivalent à :
+        curl --location '<base_url>/api/notification/v1/merchantcallback' \
+        --header 'Authorization: Bearer <token>' \
+        --header 'Content-Type: application/json' \
+        --data-raw '{
+          "apiKey": "...",
+          "callbackUrl": "...",
+          "code": "...",
+          "name": "..."
+        }'
+        """
+        self.ensure_one()
+
+        try:
+            # 1) Récupérer un token d'accès OAuth2
+            token = self._get_access_token()
+            if not token:
+                raise ValidationError("Impossible d'obtenir un token d'accès OAuth2.")
+
+            # 2) Construire l'URL complète
+            # en sandbox : https://api.sandbox.orange-sonatel.com/api/notification/v1/merchantcallback
+            # en prod :   https://api.orange-sonatel.com/api/notification/v1/merchantcallback
+            url = f"https://api.orange-sonatel.com/api/notification/v1/merchantcallback"
+
+            # 3) Headers
+            headers = {
+                'Authorization': f'Bearer {token}',
+                'Content-Type': 'application/json',
+            }
+
+            # 4) Payload (body JSON)
+            payload = {
+                "apiKey": self.api_key,
+                "callbackUrl": self.callback_notification_url,
+                "code": self.merchant_code,          # ex: 562544
+                "name": self.merchant_name,          # ex: CCTS
+            }
+
+            _logger.info("Enregistrement du webhook Orange Money: URL=%s, payload=%s", url, payload)
+
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+
+            _logger.info("Réponse webhook Orange: %s - %s", response.status_code, response.text)
+
+            # On garde la dernière réponse sur la config
+            self.write({
+                'last_webhook_status': f"{response.status_code} - {response.text}"
+            })
+
+            if response.status_code not in (200, 201, 202):
+                raise ValidationError(
+                    f"Échec de l'enregistrement du webhook Orange Money.\n"
+                    f"Code HTTP: {response.status_code}\n"
+                    f"Réponse: {response.text}"
+                )
+
+            # Notif Odoo
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Webhook configuré',
+                    'message': 'Le webhook Orange Money a été configuré avec succès.',
+                    'type': 'success',
+                    'sticky': False,
+                }
+            }
+
+        except ValidationError:
+            raise
+        except Exception as e:
+            _logger.error("Erreur lors de la configuration du webhook Orange Money: %s", str(e))
+            raise ValidationError(f"Erreur lors de la configuration du webhook: {str(e)}")
+
 
 
